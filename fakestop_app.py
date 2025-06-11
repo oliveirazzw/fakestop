@@ -174,68 +174,61 @@ def exibir_resultados_primeira_crew(resultado):
             st.error("A chave ou método 'tasks_output' não foi encontrado no resultado.")
     except Exception as e:
         st.error(f"Erro ao acessar os dados: {str(e)}")
-
+        
 st.title("🔍 Verificador de Notícias com IA - CrewAI")
 
+# Criar abas
+aba_analise, aba_historico = st.tabs(["📰 Nova Análise", "📚 Histórico de Análises"])
 
-# Input de nova notícia
-noticia = st.text_area("📄 Cole aqui a notícia que você quer verificar")
+with aba_analise:
+    noticia = st.text_area("📄 Cole aqui a notícia que você quer verificar")
 
-if st.button("Verificar"):
-    if noticia.strip() == "":
-        st.warning("⚠️ Por favor, insira uma notícia para verificar.")
-    else:
-        with st.spinner("🧠 Aguardando análise completa pelos agentes..."):
-            # Primeira Crew: Coletor, Linguista e Verificador
-            resultado = equipe.kickoff(inputs={"noticia": noticia})
+    if st.button("Verificar"):
+        if noticia.strip() == "":
+            st.warning("⚠️ Por favor, insira uma notícia para verificar.")
+        else:
+            with st.spinner("🧠 Aguardando análise completa pelos agentes..."):
+                resultado = equipe.kickoff(inputs={"noticia": noticia})
         
-        st.success("✅ Análise Concluída na Primeira Crew!")
+            st.success("✅ Análise Concluída na Primeira Crew!")
+            exibir_resultados_primeira_crew(resultado)
 
-        # Exibir os resultados da primeira Crew
-        exibir_resultados_primeira_crew(resultado)
+            with st.spinner("🔍 Realizando a classificação..."):
+                resultado_classificacao = eqp_classificacao.kickoff(inputs={"noticia": noticia})
 
-        # Agora, chamamos a segunda Crew (Classificador)
-        with st.spinner("🔍 Realizando a classificação..."):
-            resultado_classificacao = eqp_classificacao.kickoff(inputs={"noticia": noticia})
+            st.success("✅ Classificação Concluída!")
 
-        st.success("✅ Classificação Concluída!")
+            st.subheader("📊 Resultado da Classificação")
+            try:
+                if hasattr(resultado_classificacao, 'tasks_output'):
+                    tasks_output = resultado_classificacao.tasks_output
+                    for i, task_output in enumerate(tasks_output):
+                        st.subheader(f"🧑‍💼 {task_output.agent} - Tarefa {i+1}")
+                        st.markdown(f"**Descrição da Tarefa:**\n\n{task_output.description}")
+                        st.markdown(f"**Resultado:**\n\n{task_output.raw.strip()}")
+                        st.divider()
+                else:
+                    st.error("A chave ou método 'tasks_output' não foi encontrado no resultado.")
+            except Exception as e:
+                st.error(f"Erro ao acessar os dados: {str(e)}")
 
-        # Exibe os resultados da classificação
-        st.subheader("📊 Resultado da Classificação")
-        try:
-            if hasattr(resultado_classificacao, 'tasks_output'):
-                tasks_output = resultado_classificacao.tasks_output
-                for i, task_output in enumerate(tasks_output):
-                    st.subheader(f"🧑‍💼 {task_output.agent} - Tarefa {i+1}")
-                    st.markdown(f"**Descrição da Tarefa:**\n\n{task_output.description}")
-                    st.markdown(f"**Resultado:**\n\n{task_output.raw.strip()}")
-                    st.divider()
-            else:
-                st.error("A chave ou método 'tasks_output' não foi encontrado no resultado.")
-        except Exception as e:
-            st.error(f"Erro ao acessar os dados: {str(e)}")
+            # (Opcional) Substituir com os outputs reais, se disponível
+            coletor_resultado = "Resultado do Coletor"
+            linguista_resultado = "Resultado do Linguista"
+            verificador_resultado = "Resultado do Verificador"
+            classificacao_resultado = "Resultado da Classificação"
+            inserir_analise(noticia, coletor_resultado, linguista_resultado, verificador_resultado, classificacao_resultado)
 
-        # Exibir histórico de análises
-        st.subheader("📚 Histórico de Análises")
-        exibir_historico()
+            st.subheader("🔍 Análise Completa")
+            st.markdown("""
+            ### Agentes Individuais:
 
-        # Inserir os resultados no banco de dados
-        # Certifique-se de substituir os valores reais dos resultados (exemplo com 'task_output.raw.strip()')
-        coletor_resultado = "Resultado do Coletor"
-        linguista_resultado = "Resultado do Linguista"
-        verificador_resultado = "Resultado do Verificador"
-        classificacao_resultado = "Resultado da Classificação"
-        inserir_analise(noticia, coletor_resultado, linguista_resultado, verificador_resultado, classificacao_resultado)
-        
-        # Organize the layout with professional headings
-        st.subheader("🔍 Análise Completa")
-        st.markdown("""
-        ### Agentes Individuais:
+            **Agente Coletor**: Busca e apresenta notícias semelhantes.  
+            **Agente Linguístico**: Avalia o tom, estilo e estrutura.  
+            **Agente Verificador**: Confere os fatos com fontes confiáveis.  
+            **Agente Classificador**: Classifica a confiabilidade da notícia.
+            """)
 
-        **Agente Coletor**: Responsável por buscar e apresentar notícias semelhantes à fornecida.  
-        **Agente Linguístico**: Avalia o tom, estilo e estrutura da notícia.  
-        **Agente Verificador de Fatos**: Realiza a verificação de fatos comparando com fontes confiáveis.  
-        **Agente Classificador**: Determina a confiabilidade da notícia com justificativas.
-
-        Cada agente contribui de maneira específica para a avaliação detalhada da notícia apresentada.
-        """)
+with aba_historico:
+    st.subheader("📚 Histórico de Análises")
+    exibir_historico()
