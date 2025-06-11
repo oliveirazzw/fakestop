@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.session_state as session
 from crewai import Agent, Task, Crew, Process, LLM
 from dotenv import load_dotenv
 import os
@@ -15,8 +16,6 @@ llm = LLM(
 )
 
 # === AGENTES ===
-# Cada agente tem um papel específico na análise da notícia
-
 coletor = Agent(
     role="Agente Coletor",
     goal="Buscar e apresentar notícias semelhantes à fornecida",
@@ -50,41 +49,31 @@ classificador = Agent(
 )
 
 # === TAREFAS ===
-# Define as tarefas para cada agente
-
 tarefa_coletor = Task(
     description="Coletar notícias semelhantes à seguinte: {{noticia}}",
     expected_output="Uma lista de resumos de notícias semelhantes encontradas.",
-    agent=coletor,
-    output_file="coletor_md",
+    agent=coletor
 )
 
 tarefa_linguista = Task(
     description="Analisar o tom, estilo e estrutura da seguinte notícia: {{noticia}}",
     expected_output="Um relatório descrevendo o tom (neutro, sensacionalista, alarmista, etc), estilo de escrita e padrões linguísticos detectados.",
-    input="coletor_md",
-    agent=linguista,
-    output_file="analise_linguistica.md"
+    agent=linguista
 )
 
 tarefa_verificador = Task(
     description="Comparar a seguinte notícia com fatos reais e bancos de dados confiáveis: {{noticia}}",
     expected_output="Uma verificação detalhada dos principais pontos da notícia, indicando se há inconsistências ou falsas alegações.",
-    input="analise_linguistica.md",
-    agent=verificador,
-    output_file="verificacao_fatos.md"
+    agent=verificador
 )
 
 tarefa_classificador = Task(
     description="Com base nas análises anteriores, classifique a seguinte notícia: {{noticia}}",
     expected_output="Classificação final: Confiável, Dúbia ou Falsa, com justificativa.",
-    agent=classificador,
-    output_file="classificacao_final.md",
+    agent=classificador
 )
 
-# === EQUIPES (CREWS) ===
-# Equipe principal com 3 agentes e outra para classificação final
-
+# === EQUIPES ===
 equipe = Crew(
     agents=[coletor, linguista, verificador],
     tasks=[tarefa_coletor, tarefa_linguista, tarefa_verificador],
@@ -100,8 +89,6 @@ eqp_classificacao = Crew(
 )
 
 # === BANCO DE DADOS ===
-# Funções para criar e manipular o banco de dados local SQLite
-
 def conectar_db():
     return sqlite3.connect('analises.db')
 
@@ -141,8 +128,6 @@ def buscar_historico():
     return historico
 
 # === INTERFACE STREAMLIT ===
-# Interface para entrada do usuário e visualização do histórico
-
 def exibir_historico():
     historico = buscar_historico()
     if historico:
@@ -172,19 +157,24 @@ def exibir_resultados_primeira_crew(resultado):
         st.error(f"Erro ao acessar os dados: {str(e)}")
 
 # === INICIALIZAÇÃO DO APP ===
-
 st.title("🔍 Verificador de Notícias com IA - CrewAI")
 
 criar_tabela()
 
+if "analise_concluida" not in session:
+    session.analise_concluida = False
+
 aba_analise, aba_historico = st.tabs(["📰 Nova Análise", "📚 Histórico de Análises"])
 
 with aba_analise:
-    noticia = st.text_area("📄 Cole aqui a notícia que você quer verificar")
+    noticia = st.text_area("📄 Cole aqui a notícia que você quer verificar", value="", key="input_noticia")
+
     if st.button("Verificar"):
         if noticia.strip() == "":
             st.warning("⚠️ Por favor, insira uma notícia para verificar.")
         else:
+            session.analise_concluida = False
+
             with st.spinner("🧠 Aguardando análise completa pelos agentes..."):
                 resultado = equipe.kickoff(inputs={"noticia": noticia})
 
@@ -229,6 +219,10 @@ with aba_analise:
 
             inserir_analise(noticia, coletor_resultado, linguista_resultado, verificador_resultado, classificacao_resultado)
 
+            # Limpa o campo após análise
+            session.input_noticia = ""
+            session.analise_concluida = True
+
             st.subheader("🔍 Análise Completa")
             st.markdown("""
             ### Agentes Individuais:
@@ -241,4 +235,8 @@ with aba_analise:
 
 with aba_historico:
     st.subheader("📚 Histórico de Análises")
+
+    if st.button("🔄 Atualizar Histórico"):
+        st.experimental_rerun()
+
     exibir_historico()
